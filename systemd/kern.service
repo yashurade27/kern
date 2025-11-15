@@ -1,0 +1,12 @@
+[Unit]
+Description=Kern Resource Manager
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/kern daemon
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,35 @@
+name: "Coding Mode"
+description: "Optimized for development work"
+
+# Processes to keep running
+protected:
+  - code
+  - code-insiders
+  - gnome-terminal
+  - alacritty
+  - kitty
+  - rust-analyzer
+  - gopls
+  - typescript-language-server
+
+# Kill these when mode activates
+kill_on_activate:
+  - chrome
+  - chromium
+  - slack
+  - discord
+  - spotify
+  - steam
+
+# Resource limits
+limits:
+  max_cpu_percent: 80
+  max_ram_percent: 75
+  max_temp: 75
+
+# Auto-activate when?
+auto_activate:
+  enabled: false
+  triggers:
+    - command_contains: "code"
+    - command_contains: "vim"

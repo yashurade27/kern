@@ -1,0 +1,29 @@
+# Kern main configuration
+
+# Default profile on startup
+default_profile: "normal"
+
+# Monitoring interval (seconds)
+monitor_interval: 2
+
+# Temperature thresholds (Celsius)
+temperature:
+  warning: 75
+  critical: 85
+
+# Resource limits (defaults)
+limits:
+  max_cpu_percent: 90
+  max_ram_percent: 85
+
+# Protected processes (never kill these)
+protected_processes:
+  - systemd
+  - gnome-shell
+  - kern
+
+# Notification settings
+notifications:
+  enabled: true
+  show_on_kill: true
+  show_on_profile_switch: true

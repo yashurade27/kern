@@ -1,0 +1,34 @@
+name: "Building Mode"
+description: "Maximum resources for compilation"
+
+protected:
+  - cargo
+  - rustc
+  - gcc
+  - g++
+  - make
+  - cmake
+  - ninja
+  - npm
+  - node
+
+kill_on_activate:
+  - chrome
+  - chromium
+  - firefox
+  - slack
+  - discord
+  - spotify
+  - teams
+
+limits:
+  max_cpu_percent: 95
+  max_ram_percent: 90
+  max_temp: 80
+
+auto_activate:
+  enabled: true
+  triggers:
+    - command_contains: "cargo build"
+    - command_contains: "make"
+    - command_contains: "npm run build"
