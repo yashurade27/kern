@@ -1,4 +1,5 @@
 mod monitor;
+mod config;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand, CommandFactory};
@@ -139,10 +140,15 @@ fn kill_process_by_name(name: &str) -> Result<()> {
 }
 
 fn main() -> Result<()> {
+    // Load configuration at startup
+    let config = config::KernConfig::load()?;
+    config.print_summary();
+    println!();
+
     let cli = Cli::parse();
 
     if cli.monitor {
-        return monitor_loop(2);
+        return monitor_loop(config.monitor_interval);
     }
 
     match cli.command {
