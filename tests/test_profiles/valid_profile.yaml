@@ -1,0 +1,16 @@
+name: "Testing Profile"
+description: "A valid profile used for testing"
+protected:
+  - systemd
+  - gnome-shell
+  - test-process
+kill_on_activate:
+  - test-bloat
+  - unnecessary-app
+limits:
+  max_cpu_percent: 75
+  max_ram_percent: 80
+  max_temp: 90
+auto_activate:
+  enabled: false
+  triggers: []

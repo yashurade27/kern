@@ -1,0 +1,11 @@
+name: "Invalid Temperature"
+description: "Profile with invalid temperature"
+protected: []
+kill_on_activate: []
+limits:
+  max_cpu_percent: 80
+  max_ram_percent: 80
+  max_temp: 150
+auto_activate:
+  enabled: false
+  triggers: []

@@ -160,7 +160,6 @@ impl KernConfig {
         // Try user config first
         if let Some(config_path) = Self::user_config_path() {
             if config_path.exists() {
-                eprintln!("Loading config from: {}", config_path.display());
                 return Self::load_from_file(&config_path);
             }
         }
@@ -168,13 +167,10 @@ impl KernConfig {
         // Try system config
         let system_config_path = PathBuf::from("/etc/kern/kern.yaml");
         if system_config_path.exists() {
-            eprintln!("Loading config from: {}", system_config_path.display());
             return Self::load_from_file(&system_config_path);
         }
 
         // Use defaults
-        eprintln!(" No config file found. Using default values.");
-        eprintln!(" Create config at: ~/.config/kern/kern.yaml");
         Ok(Self::default())
     }
 

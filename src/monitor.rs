@@ -1,5 +1,5 @@
 use anyhow::Result;
-use sysinfo::{System};
+use sysinfo::System;
 
 #[derive(Debug, Clone)]
 pub struct ProcessInfo {
@@ -10,7 +10,6 @@ pub struct ProcessInfo {
 }
 
 #[derive(Debug)]
-
 pub struct SystemStats {
     pub cpu_usage: f64,
     pub total_memory_gb: f64,
@@ -20,8 +19,44 @@ pub struct SystemStats {
     pub top_processes: Vec<ProcessInfo>,
 }
 
-//get current system stats
-pub fn get_system_stats() -> Result<SystemStats> { // kern status
+fn get_process_memory_from_proc(pid: u32) -> Option<u64> {
+    let status_path = format!("/proc/{}/status", pid);
+    let contents = std::fs::read_to_string(status_path).ok()?;
+    
+    for line in contents.lines() {
+        if line.starts_with("VmRSS:") {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() >= 2 {
+                if let Ok(kb) = parts[1].parse::<u64>() {
+                    return Some(kb * 1024);
+                }
+            }
+        }
+    }
+    None
+}
+
+fn is_thread(pid: u32) -> bool {
+    if let Ok(contents) = std::fs::read_to_string(format!("/proc/{}/status", pid)) {
+        let mut tgid = None;
+        let mut pid_val = None;
+        
+        for line in contents.lines() {
+            if line.starts_with("Tgid:") {
+                tgid = line.split_whitespace().nth(1).and_then(|s| s.parse::<u32>().ok());
+            } else if line.starts_with("Pid:") {
+                pid_val = line.split_whitespace().nth(1).and_then(|s| s.parse::<u32>().ok());
+            }
+        }
+        
+        if let (Some(tgid), Some(pid_val)) = (tgid, pid_val) {
+            return tgid != pid_val;
+        }
+    }
+    false
+}
+
+pub fn get_system_stats() -> Result<SystemStats> {
     let mut sys = System::new_all();
     sys.refresh_all();
 
@@ -30,25 +65,34 @@ pub fn get_system_stats() -> Result<SystemStats> { // kern status
 
     let cpu_usage = sys.global_cpu_usage() as f64;
 
-    let total_memory = sys.total_memory() as f64 / 1_073_741_824.0; // Convert bytes to GB
-    let used_memory = sys.used_memory() as f64 / 1_073_741_824.0; // Convert bytes to GB
+    let total_memory = sys.total_memory() as f64 / 1_073_741_824.0;
+    let used_memory = sys.used_memory() as f64 / 1_073_741_824.0;
     let memory_percentage = (used_memory / total_memory) * 100.0;
 
     let temperature = get_cpu_temperature().unwrap_or(0.0);
 
-    // Process list
     let mut processes: Vec<ProcessInfo> = sys
         .processes()
         .iter()
-        .map(|(pid, process)| ProcessInfo {
-            pid: pid.as_u32(),
-            name: process.name().to_string_lossy().to_string(),
-            memory_gb: process.memory() as f64 / 1_073_741_824.0,
-            cpu_percentage: process.cpu_usage() as f64,
+        .filter_map(|(pid, process)| {
+            let pid_val = pid.as_u32();
+            
+            if is_thread(pid_val) {
+                return None;
+            }
+            
+            let memory_bytes = get_process_memory_from_proc(pid_val)
+                .unwrap_or_else(|| process.memory());
+            
+            Some(ProcessInfo {
+                pid: pid_val,
+                name: process.name().to_string_lossy().to_string(),
+                memory_gb: memory_bytes as f64 / 1_073_741_824.0,
+                cpu_percentage: process.cpu_usage() as f64,
+            })
         })
         .collect();
 
-    // Sort by memory usage (descending)
     processes.sort_by(|a, b| b.memory_gb.partial_cmp(&a.memory_gb).unwrap());
 
     Ok(SystemStats {
@@ -61,29 +105,38 @@ pub fn get_system_stats() -> Result<SystemStats> { // kern status
     })
 }
 
-pub fn get_all_processes() -> Result<Vec<ProcessInfo>> { //kern list
+pub fn get_all_processes() -> Result<Vec<ProcessInfo>> {
     let mut sys = System::new_all();
     sys.refresh_all();
 
     let mut processes: Vec<ProcessInfo> = sys
         .processes()
         .iter()
-        .map(|(pid, process)| ProcessInfo {
-            pid: pid.as_u32(),
-            name: process.name().to_string_lossy().to_string(),
-            memory_gb: process.memory() as f64 / 1_073_741_824.0,
-            cpu_percentage: process.cpu_usage() as f64,
+        .filter_map(|(pid, process)| {
+            let pid_val = pid.as_u32();
+            
+            if is_thread(pid_val) {
+                return None;
+            }
+            
+            let memory_bytes = get_process_memory_from_proc(pid_val)
+                .unwrap_or_else(|| process.memory());
+            
+            Some(ProcessInfo {
+                pid: pid_val,
+                name: process.name().to_string_lossy().to_string(),
+                memory_gb: memory_bytes as f64 / 1_073_741_824.0,
+                cpu_percentage: process.cpu_usage() as f64,
+            })
         })
         .collect();
 
-    // Sort by memory usage
     processes.sort_by(|a, b| b.memory_gb.partial_cmp(&a.memory_gb).unwrap());
 
     Ok(processes)
 }
 
-// find process to kill it
-pub fn find_process_by_name(name: &str) -> Option<u32> { //kern kill [process_name] , eg: kern kill chrome
+pub fn find_process_by_name(name: &str) -> Option<u32> {
     let sys = System::new_all();
     
     for (pid, process) in sys.processes() {
@@ -97,21 +150,19 @@ pub fn find_process_by_name(name: &str) -> Option<u32> { //kern kill [process_na
 }
 
 fn get_cpu_temperature() -> Result<f64> {
-    // Check thermal zones in order of preference (CPU-related first)
     let thermal_zones = [
-        "/sys/class/thermal/thermal_zone4/temp", // TCPU (CPU)
-        "/sys/class/thermal/thermal_zone6/temp", // x86_pkg_temp (package)
-        "/sys/class/thermal/thermal_zone1/temp", // TSKN (skin)
-        "/sys/class/thermal/thermal_zone2/temp", // TMEM (memory)
-        "/sys/class/thermal/thermal_zone0/temp", // INT3400
-        "/sys/class/thermal/thermal_zone5/temp", // iwlwifi
-        "/sys/class/thermal/thermal_zone3/temp", // NGFF
+        "/sys/class/thermal/thermal_zone4/temp",
+        "/sys/class/thermal/thermal_zone6/temp",
+        "/sys/class/thermal/thermal_zone1/temp",
+        "/sys/class/thermal/thermal_zone2/temp",
+        "/sys/class/thermal/thermal_zone0/temp",
+        "/sys/class/thermal/thermal_zone5/temp",
+        "/sys/class/thermal/thermal_zone3/temp",
     ];
 
     for path in &thermal_zones {
         if let Ok(contents) = std::fs::read_to_string(path) {
             if let Ok(temp) = contents.trim().parse::<f64>() {
-                // Convert from millidegree Celsius to degree Celsius
                 return Ok(temp / 1000.0);
             }
         }
@@ -119,7 +170,6 @@ fn get_cpu_temperature() -> Result<f64> {
     Ok(0.0)
 }
 
-// Debug function to list all thermal zones and their readings
 pub fn debug_thermal_zones() -> Result<()> {
     println!("Available thermal zones:");
     for i in 0..10 {

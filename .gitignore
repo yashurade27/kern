@@ -31,3 +31,11 @@ plan.md
 # Build artifacts
 *.deb
 *.rpm
+
+# Temporary test configuration
+.test-config/
+
+# Environment files
+.env
+.env.local
+.env.*.local

@@ -1,0 +1,11 @@
+name: "Invalid RAM"
+description: "Profile with invalid RAM percentage"
+protected: []
+kill_on_activate: []
+limits:
+  max_cpu_percent: 80
+  max_ram_percent: -10
+  max_temp: 85
+auto_activate:
+  enabled: false
+  triggers: []

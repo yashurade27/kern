@@ -1,0 +1,11 @@
+name: "Minimum Limits"
+description: "Profile with minimum allowed values"
+protected: []
+kill_on_activate: []
+limits:
+  max_cpu_percent: 0
+  max_ram_percent: 0
+  max_temp: 0
+auto_activate:
+  enabled: false
+  triggers: []

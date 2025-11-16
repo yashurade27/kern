@@ -1,0 +1,11 @@
+name: "Maximum Limits"
+description: "Profile with maximum allowed values"
+protected: []
+kill_on_activate: []
+limits:
+  max_cpu_percent: 100
+  max_ram_percent: 100
+  max_temp: 120
+auto_activate:
+  enabled: false
+  triggers: []

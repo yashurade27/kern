@@ -1,5 +1,6 @@
 mod monitor;
 mod config;
+mod profiles;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand, CommandFactory};
@@ -87,8 +88,10 @@ fn print_status(json: bool) -> Result<()> {
 fn print_list(json: bool, count: usize) -> Result<()> {
     let processes = monitor::get_all_processes()?;
     if json {
+        // For JSON mode, only output the JSON array without config summary
         let arr: Vec<serde_json::Value> = processes
             .iter()
+            .take(count)
             .map(|p| {
                 serde_json::json!({
                     "pid": p.pid,
@@ -140,12 +143,22 @@ fn kill_process_by_name(name: &str) -> Result<()> {
 }
 
 fn main() -> Result<()> {
+    let cli = Cli::parse();
+    
     // Load configuration at startup
     let config = config::KernConfig::load()?;
-    config.print_summary();
-    println!();
-
-    let cli = Cli::parse();
+    
+    // Suppress config summary in JSON mode
+    let is_json_mode = match &cli.command {
+        Some(Commands::Status { json }) => *json,
+        Some(Commands::List { json, .. }) => *json,
+        _ => false,
+    };
+    
+    if !is_json_mode {
+        config.print_summary();
+        println!();
+    }
 
     if cli.monitor {
         return monitor_loop(config.monitor_interval);

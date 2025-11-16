@@ -1,0 +1,18 @@
+name: "Coding"
+description: "Profile optimized for coding and development"
+protected:
+  - systemd
+  - gnome-shell
+  - code
+  - rust
+  - cargo
+kill_on_activate:
+  - chrome
+  - firefox
+limits:
+  max_cpu_percent: 80
+  max_ram_percent: 85
+  max_temp: 85
+auto_activate:
+  enabled: false
+  triggers: []
