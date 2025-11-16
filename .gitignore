@@ -24,6 +24,10 @@ extension/*.zip
 # Config (user-specific)
 config/local.yaml
 
+# Plan and documentation (project-specific)
+plan/
+plan.md
+
 # Build artifacts
 *.deb
 *.rpm
