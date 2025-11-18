@@ -3,6 +3,7 @@ use crate::monitor::{get_system_stats, SystemStats};
 use crate::killer;
 use crate::config::KernConfig;
 use crate::profiles::Profile;
+use crate::notify::NotificationManager;
 
 /// Core enforcer state
 #[derive(Debug, Clone)]
@@ -12,16 +13,19 @@ pub struct Enforcer {
     emergency_mode: bool,
     emergency_since: Option<Instant>,
     last_enforcement: Instant,
+    notification_manager: NotificationManager,
 }
 
 impl Enforcer {
     pub fn new(config: KernConfig, current_profile: Profile) -> Self {
+        let notification_manager = NotificationManager::new(&config.notifications);
         Self {
             config,
             current_profile,
             emergency_mode: false,
             emergency_since: None,
             last_enforcement: Instant::now(),
+            notification_manager,
         }
     }
 
@@ -35,6 +39,7 @@ impl Enforcer {
                 eprintln!("🟢 Emergency mode disabled - temperature cooled to {:.1}°C", stats.temperature);
                 self.emergency_mode = false;
                 self.emergency_since = None;
+                let _ = self.notification_manager.notify_emergency_mode_resolved(stats.temperature);
             }
         }
 
@@ -44,6 +49,7 @@ impl Enforcer {
                 stats.temperature, self.config.temperature.critical);
             self.emergency_mode = true;
             self.emergency_since = Some(Instant::now());
+            let _ = self.notification_manager.notify_emergency_mode(stats.temperature, self.config.temperature.critical);
             
             // Kill all non-protected processes immediately
             action_taken = self.handle_emergency_mode(&stats)?;
@@ -85,6 +91,10 @@ impl Enforcer {
             }
         }
 
+        if killed_count > 0 {
+            let _ = self.notification_manager.notify_process_killed(0, "emergency", killed_count);
+        }
+
         Ok(killed_count > 0)
     }
 
@@ -96,6 +106,11 @@ impl Enforcer {
         if stats.cpu_usage > self.current_profile.limits.max_cpu_percent {
             eprintln!("⚠️  CPU limit exceeded: {:.1}% > {:.1}%", 
                 stats.cpu_usage, self.current_profile.limits.max_cpu_percent);
+            let _ = self.notification_manager.notify_resource_limit_exceeded(
+                "CPU",
+                stats.cpu_usage,
+                self.current_profile.limits.max_cpu_percent,
+            );
             action_taken |= self.kill_heaviest_process(&stats)?;
         }
 
@@ -103,6 +118,11 @@ impl Enforcer {
         if stats.memory_percentage > self.current_profile.limits.max_ram_percent {
             eprintln!("⚠️  RAM limit exceeded: {:.1}% > {:.1}%", 
                 stats.memory_percentage, self.current_profile.limits.max_ram_percent);
+            let _ = self.notification_manager.notify_resource_limit_exceeded(
+                "RAM",
+                stats.memory_percentage,
+                self.current_profile.limits.max_ram_percent,
+            );
             action_taken |= self.kill_heaviest_process(&stats)?;
         }
 
@@ -110,6 +130,10 @@ impl Enforcer {
         if stats.temperature > self.config.temperature.warning && stats.temperature < self.config.temperature.critical {
             eprintln!("🟡 Temperature warning: {:.1}°C > {:.1}°C", 
                 stats.temperature, self.config.temperature.warning);
+            let _ = self.notification_manager.notify_temperature_warning(
+                stats.temperature,
+                self.config.temperature.warning,
+            );
             // Kill one process to cool down
             action_taken |= self.kill_heaviest_process(&stats)?;
         }
@@ -132,6 +156,7 @@ impl Enforcer {
                 Ok(_) => {
                     eprintln!("  ✓ Killed {} (PID: {}) - high resource usage", process.name, process.pid);
                     killer::log_kill_action(process.pid, &process.name, true, self.config.kill_graceful);
+                    let _ = self.notification_manager.notify_process_killed(process.pid, &process.name, 1);
                     return Ok(true);
                 }
                 Err(e) => {
@@ -157,7 +182,8 @@ impl Enforcer {
 
     // Switch to a new profile
     pub fn switch_profile(&mut self, new_profile: Profile) -> anyhow::Result<()> {
-        eprintln!("Switching profile: {} → {}", self.current_profile.name, new_profile.name);
+        let old_name = self.current_profile.name.clone();
+        eprintln!("Switching profile: {} → {}", old_name, new_profile.name);
         
         // Kill processes marked for killing on activate (only if not protected/critical)
         for proc_name in &new_profile.kill_on_activate {
@@ -184,6 +210,8 @@ impl Enforcer {
         self.current_profile = new_profile;
         self.emergency_mode = false;
         self.emergency_since = None;
+        
+        let _ = self.notification_manager.notify_profile_switched(&old_name, &self.current_profile.name);
         
         Ok(())
     }

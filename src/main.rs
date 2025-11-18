@@ -5,6 +5,7 @@ mod killer;
 mod enforcer;
 mod stats;
 mod dbus_server;
+mod notify;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand, CommandFactory};
