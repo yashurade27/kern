@@ -2,6 +2,7 @@ mod monitor;
 mod config;
 mod profiles;
 mod killer;
+mod enforcer;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand, CommandFactory};
@@ -36,6 +37,8 @@ enum Commands { // kern status , kern list , kern kill [process_name] , kern mod
     Mode {
         profile: String,
     },
+    /// Start enforcer loop (monitors and enforces resource limits)
+    Enforce,
     /// Debug thermal zones (shows all available temperature sensors)
     Thermal,
 }
@@ -221,6 +224,13 @@ fn main() -> Result<()> {
         Some(Commands::Kill { name }) => kill_process_by_name(&name, &config)?,
         Some(Commands::Mode { profile }) => {
             println!("Mode switching to '{}' (not yet implemented)", profile);
+        }
+        Some(Commands::Enforce) => {
+            let default_profile = profiles::Profile {
+                name: config.default_profile.clone(),
+                ..Default::default()
+            };
+            enforcer::run_enforcer_loop(config, default_profile)?;
         }
         Some(Commands::Thermal) => monitor::debug_thermal_zones()?,
         None => {
