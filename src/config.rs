@@ -27,6 +27,16 @@ pub struct KernConfig { // overall configuration
     // Notification settings
     #[serde(default)]
     pub notifications: NotificationConfig,
+
+    // Process killer settings
+    #[serde(default = "default_kill_graceful")]
+    pub kill_graceful: bool,
+
+    #[serde(default = "default_kill_timeout_seconds")]
+    pub kill_timeout_seconds: u32,
+
+    #[serde(default = "default_kill_confirmation_threshold")]
+    pub kill_confirmation_threshold: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -108,6 +118,18 @@ fn default_show_on_profile_switch() -> bool {
     true
 }
 
+fn default_kill_graceful() -> bool {
+    true
+}
+
+fn default_kill_timeout_seconds() -> u32 {
+    5
+}
+
+fn default_kill_confirmation_threshold() -> usize {
+    5
+}
+
 impl Default for TemperatureConfig {
     fn default() -> Self {
         Self {
@@ -145,6 +167,9 @@ impl Default for KernConfig {
             limits: ResourceLimits::default(),
             protected_processes: default_protected_processes(),
             notifications: NotificationConfig::default(),
+            kill_graceful: default_kill_graceful(),
+            kill_timeout_seconds: default_kill_timeout_seconds(),
+            kill_confirmation_threshold: default_kill_confirmation_threshold(),
         }
     }
 }
@@ -270,6 +295,10 @@ impl KernConfig {
             self.notifications.show_on_profile_switch
         );
         println!("Protected Processes: {}", self.protected_processes.join(", "));
+        println!(
+            "Killer Settings: graceful={}, timeout={}s, confirmation_threshold={}",
+            self.kill_graceful, self.kill_timeout_seconds, self.kill_confirmation_threshold
+        );
     }
 }
 

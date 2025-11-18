@@ -1,10 +1,11 @@
 mod monitor;
 mod config;
 mod profiles;
+mod killer;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand, CommandFactory};
-use std::process::Command;
+use std::io::{self, Write};
 
 
 #[derive(Debug, Parser)]
@@ -124,21 +125,71 @@ fn monitor_loop(interval_secs: u64) -> Result<()> {
     }
 }
 
-fn kill_process_by_name(name: &str) -> Result<()> {
-    if let Some(pid) = monitor::find_process_by_name(name) {
-        println!("Found process '{}' -> PID {}", name, pid);
-        let status = Command::new("kill")
-            .arg("-TERM")
-            .arg(pid.to_string())
-            .status()?;
-        if status.success() {
-            println!("✓ Sent SIGTERM to {} (PID {})", name, pid);
-        } else {
-            println!("✗ Failed to send SIGTERM; exit code: {}", status);
-        }
-    } else {
-        println!("No running process found matching '{}'", name);
+fn kill_process_by_name(name: &str, config: &config::KernConfig) -> Result<()> {
+    // Find all processes matching the name
+    let pids = killer::find_processes_by_name(name);
+    
+    if pids.is_empty() {
+        println!("❌ No running process found matching '{}'", name);
+        return Ok(());
     }
+    
+    println!("Found {} process(es) matching '{}'", pids.len(), name);
+    
+    // Check if process is critical
+    if killer::is_critical_process(name) {
+        println!("❌ Cannot kill '{}' - it is a critical system process", name);
+        return Ok(());
+    }
+    
+    // Check if process is protected
+    if killer::is_protected(name, &config.protected_processes) {
+        println!("❌ Cannot kill '{}' - it is in the protected process list", name);
+        return Ok(());
+    }
+    
+    // If more than threshold, ask for confirmation
+    if pids.len() > config.kill_confirmation_threshold {
+        println!("\n⚠️  This will kill {} processes. Are you sure? (yes/no)", pids.len());
+        print!("Please confirm: ");
+        io::stdout().flush()?;
+        
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        
+        if !input.trim().eq_ignore_ascii_case("yes") && !input.trim().eq_ignore_ascii_case("y") {
+            println!("Cancelled.");
+            return Ok(());
+        }
+    }
+    
+    // Kill the processes
+    match killer::kill_processes(&pids, config.kill_graceful) {
+        Ok(_) => {
+            let kill_type = if config.kill_graceful { "gracefully" } else { "forcefully" };
+            println!("✅ Killed {} process(es) {} (PID: {})", 
+                pids.len(), 
+                kill_type,
+                pids.iter()
+                    .map(|p| p.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            );
+            
+            // Log the action for each PID
+            for pid in &pids {
+                killer::log_kill_action(*pid, name, true, config.kill_graceful);
+            }
+        }
+        Err(e) => {
+            println!("❌ Error killing processes: {}", e);
+            // Log failed attempt
+            for pid in &pids {
+                killer::log_kill_action(*pid, name, false, config.kill_graceful);
+            }
+        }
+    }
+    
     Ok(())
 }
 
@@ -167,7 +218,7 @@ fn main() -> Result<()> {
     match cli.command {
         Some(Commands::Status { json }) => print_status(json)?,
         Some(Commands::List { json, count }) => print_list(json, count)?,
-        Some(Commands::Kill { name }) => kill_process_by_name(&name)?,
+        Some(Commands::Kill { name }) => kill_process_by_name(&name, &config)?,
         Some(Commands::Mode { profile }) => {
             println!("Mode switching to '{}' (not yet implemented)", profile);
         }
