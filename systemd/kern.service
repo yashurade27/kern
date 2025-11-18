@@ -1,12 +1,24 @@
 [Unit]
-Description=Kern Resource Manager
-After=network.target
+Description=Kern Smart Resource Manager for Developers
+Documentation=https://github.com/yashurade27/kern
+After=graphical-session-pre.target
+PartOf=graphical-session.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/kern daemon
+ExecStart=%h/.cargo/bin/kern enforce
 Restart=on-failure
-RestartSec=5s
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Resource limits (optional)
+CPUAccounting=true
+MemoryAccounting=true
 
 [Install]
-WantedBy=default.target
+WantedBy=graphical-session.target
