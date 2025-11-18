@@ -3,6 +3,7 @@ mod config;
 mod profiles;
 mod killer;
 mod enforcer;
+mod stats;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand, CommandFactory};
