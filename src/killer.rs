@@ -57,21 +57,27 @@ pub fn kill_processes(pids: &[u32], graceful: bool) -> Result<(), String> {
     Ok(())
 }
 
+/// Get the path to the kill log file
+pub fn get_kill_log_path() -> std::path::PathBuf {
+    use std::path::PathBuf;
+
+    if let Ok(config_home) = std::env::var("XDG_CONFIG_HOME") {
+        PathBuf::from(config_home).join("kern").join("kern.log")
+    } else if let Ok(home) = std::env::var("HOME") {
+        PathBuf::from(home).join(".config").join("kern").join("kern.log")
+    } else {
+        PathBuf::from("/tmp/kern.log")
+    }
+}
+
 /// Log a kill action to ~/.config/kern/kern.log
 pub fn log_kill_action(pid: u32, name: &str, success: bool, graceful: bool) {
     use chrono::Local;
     use std::fs::OpenOptions;
     use std::io::Write;
-    use std::path::PathBuf;
 
     // Get log file path
-    let log_path = if let Ok(config_home) = std::env::var("XDG_CONFIG_HOME") {
-        PathBuf::from(config_home).join("kern").join("kern.log")
-    } else if let Ok(home) = std::env::var("HOME") {
-        PathBuf::from(home).join(".config").join("kern").join("kern.log")
-    } else {
-        return; // Can't determine log path
-    };
+    let log_path = get_kill_log_path();
 
     // Ensure directory exists
     if let Some(parent) = log_path.parent() {

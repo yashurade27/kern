@@ -4,6 +4,7 @@ mod profiles;
 mod killer;
 mod enforcer;
 mod stats;
+mod dbus_server;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand, CommandFactory};
@@ -42,6 +43,8 @@ enum Commands { // kern status , kern list , kern kill [process_name] , kern mod
     Enforce,
     /// Debug thermal zones (shows all available temperature sensors)
     Thermal,
+    /// Start DBus server for GNOME Shell integration
+    Dbus,
 }
 
 fn print_status(json: bool) -> Result<()> {
@@ -234,6 +237,11 @@ fn main() -> Result<()> {
             enforcer::run_enforcer_loop(config, default_profile)?;
         }
         Some(Commands::Thermal) => monitor::debug_thermal_zones()?,
+        Some(Commands::Dbus) => {
+            let profile_manager = profiles::ProfileManager::new(None)?;
+            tokio::runtime::Runtime::new()?
+                .block_on(dbus_server::start_dbus_server(profile_manager, config))?;
+        }
         None => {
             Cli::command().print_help()?;
             println!();
